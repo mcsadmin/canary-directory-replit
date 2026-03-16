@@ -1,0 +1,41 @@
+# Version control
+.git
+.gitignore
+
+# OS / editor artefacts
+.DS_Store
+*.swp
+*.swo
+Thumbs.db
+
+# Dependency caches — Docker installs its own
+node_modules
+**/node_modules
+
+# Build outputs (will be regenerated in Docker)
+**/dist
+**/dist/public
+**/.vite
+
+# Replit / dev-only
+.local
+.replit
+replit.nix
+.upm
+attached_assets
+
+# Test / planning docs (not needed at runtime)
+planning
+.env
+*.env
+*.env.local
+
+# Log files
+*.log
+npm-debug.log*
+
+# TypeScript cache
+*.tsbuildinfo
+
+# pnpm store
+.pnpm-store
