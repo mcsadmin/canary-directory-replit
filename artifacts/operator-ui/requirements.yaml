@@ -1,0 +1,12 @@
+packages:
+  "date-fns": "For professional date formatting in data tables and activity feeds"
+  "framer-motion": "For smooth transitions, modal animations, and list layout animations"
+  "clsx": "For conditional class merging in reusable UI components"
+  "tailwind-merge": "For properly resolving Tailwind class conflicts"
+
+images: []
+
+notes:
+  - Assumes standard shadcn/ui components exist in src/components/ui/ based on the directory structure.
+  - All API calls use the pre-generated TanStack Query hooks from @workspace/api-client-react.
+  - Using a clean, professional, data-dense "light mode" operator theme with Slate/Indigo accents.

@@ -3,13 +3,24 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Local Loop Canary API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: directory
+    description: Business node directory operations
+  - name: ingestion
+    description: Invoice CSV ingestion
+  - name: review-queue
+    description: Operator review queue
+  - name: creditors
+    description: Creditor registration and listing
+  - name: activity
+    description: Audit trail / activity feed
+
 paths:
   /healthz:
     get:
@@ -24,6 +35,309 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /v1/directory:
+    get:
+      operationId: getDirectory
+      tags: [directory]
+      summary: List all business nodes
+      description: Returns the directory of business nodes with derived fields. Supports filtering and sorting.
+      parameters:
+        - name: participation_status
+          in: query
+          schema:
+            $ref: "#/components/schemas/ParticipationStatus"
+        - name: verification_status
+          in: query
+          schema:
+            $ref: "#/components/schemas/VerificationStatus"
+        - name: geographical_status
+          in: query
+          schema:
+            $ref: "#/components/schemas/GeographicalStatus"
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            enum: [canonical_name, last_seen_date, invoice_count]
+            default: last_seen_date
+        - name: sort_order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        "200":
+          description: List of business nodes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  nodes:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/DirectoryNode"
+                required:
+                  - nodes
+
+  /v1/creditors:
+    get:
+      operationId: getCreditors
+      tags: [creditors]
+      summary: List platform user creditors
+      description: Returns all business nodes with participation_status=platform_user, for the upload dropdown.
+      responses:
+        "200":
+          description: List of creditors
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  creditors:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/CreditorSummary"
+                required:
+                  - creditors
+    post:
+      operationId: registerCreditor
+      tags: [creditors]
+      summary: Register a new creditor (platform user)
+      description: Creates a new business node with participation_status=platform_user and verification_status=resolved.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterCreditorRequest"
+      responses:
+        "201":
+          description: Creditor created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BusinessNode"
+        "409":
+          description: Conflict - creditor with this name already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/ingest:
+    post:
+      operationId: ingestInvoices
+      tags: [ingestion]
+      summary: Upload and process an invoice CSV file
+      description: Accepts a CSV file for a given creditor, runs entity resolution, and returns a summary.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                creditor_id:
+                  type: string
+                  format: uuid
+                  description: The node_id of the platform_user creditor
+                file:
+                  type: string
+                  format: binary
+                  description: The CSV file to ingest
+              required:
+                - creditor_id
+                - file
+      responses:
+        "200":
+          description: Ingestion complete
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IngestionSummary"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Creditor not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/review-queue:
+    get:
+      operationId: getReviewQueue
+      tags: [review-queue]
+      summary: List pending review queue items
+      description: Returns all pending operator review items, oldest first.
+      responses:
+        "200":
+          description: List of review items
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ReviewQueueItem"
+                  pending_count:
+                    type: integer
+                required:
+                  - items
+                  - pending_count
+
+  /v1/review-queue/{reviewId}:
+    get:
+      operationId: getReviewQueueItem
+      tags: [review-queue]
+      summary: Get a single review queue item with full node details
+      parameters:
+        - name: reviewId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Review item detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewQueueItemDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/review-queue/{reviewId}/accept:
+    post:
+      operationId: acceptReviewItem
+      tags: [review-queue]
+      summary: Accept the proposed match (merge nodes)
+      parameters:
+        - name: reviewId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Accepted and merged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewActionResult"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Review item not in pending state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/review-queue/{reviewId}/reject:
+    post:
+      operationId: rejectReviewItem
+      tags: [review-queue]
+      summary: Reject the proposed match (create do_not_match rule)
+      parameters:
+        - name: reviewId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Rejected, do_not_match rule created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewActionResult"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Review item not in pending state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/review-queue/{reviewId}/skip:
+    post:
+      operationId: skipReviewItem
+      tags: [review-queue]
+      summary: Skip the review item (leave pending)
+      parameters:
+        - name: reviewId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Skipped
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewActionResult"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/activity:
+    get:
+      operationId: getActivityFeed
+      tags: [activity]
+      summary: Get the audit event activity feed
+      description: Returns audit events newest first.
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: Activity feed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AuditEvent"
+                required:
+                  - events
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +348,262 @@ components:
       required:
         - status
 
+    ParticipationStatus:
+      type: string
+      enum: [platform_user, third_party]
+
+    VerificationStatus:
+      type: string
+      enum: [unresolved, resolved]
+
+    GeographicalStatus:
+      type: string
+      enum: [local, remote, uncertain]
+
+    ReviewStatus:
+      type: string
+      enum: [pending, accepted, rejected]
+
+    ReviewType:
+      type: string
+      enum: [proposed_match, data_conflict, contact_classification]
+
+    DirectoryNode:
+      type: object
+      properties:
+        node_id:
+          type: string
+          format: uuid
+        canonical_name:
+          type: string
+        participation_status:
+          $ref: "#/components/schemas/ParticipationStatus"
+        verification_status:
+          $ref: "#/components/schemas/VerificationStatus"
+        geographical_status:
+          $ref: "#/components/schemas/GeographicalStatus"
+        company_number:
+          type: string
+          nullable: true
+        invoice_alias_count:
+          type: integer
+        invoice_count:
+          type: integer
+        last_seen_date:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - node_id
+        - canonical_name
+        - participation_status
+        - verification_status
+        - geographical_status
+        - invoice_alias_count
+        - invoice_count
+        - created_at
+
+    BusinessNode:
+      type: object
+      properties:
+        node_id:
+          type: string
+          format: uuid
+        canonical_name:
+          type: string
+        participation_status:
+          $ref: "#/components/schemas/ParticipationStatus"
+        verification_status:
+          $ref: "#/components/schemas/VerificationStatus"
+        geographical_status:
+          $ref: "#/components/schemas/GeographicalStatus"
+        company_number:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - node_id
+        - canonical_name
+        - participation_status
+        - verification_status
+        - geographical_status
+        - created_at
+        - updated_at
+
+    CreditorSummary:
+      type: object
+      properties:
+        node_id:
+          type: string
+          format: uuid
+        canonical_name:
+          type: string
+      required:
+        - node_id
+        - canonical_name
+
+    RegisterCreditorRequest:
+      type: object
+      properties:
+        canonical_name:
+          type: string
+          minLength: 1
+      required:
+        - canonical_name
+
+    IngestionSummary:
+      type: object
+      properties:
+        filename:
+          type: string
+        total_rows:
+          type: integer
+        new_invoices:
+          type: integer
+        pending_invoices:
+          type: integer
+        new_nodes:
+          type: integer
+        new_review_items:
+          type: integer
+      required:
+        - filename
+        - total_rows
+        - new_invoices
+        - pending_invoices
+        - new_nodes
+        - new_review_items
+
+    ReviewQueueItem:
+      type: object
+      properties:
+        review_id:
+          type: string
+          format: uuid
+        review_type:
+          $ref: "#/components/schemas/ReviewType"
+        status:
+          $ref: "#/components/schemas/ReviewStatus"
+        new_node_canonical_name:
+          type: string
+        candidate_node_canonical_name:
+          type: string
+          nullable: true
+        confidence_score:
+          type: number
+          nullable: true
+        source_invoice_id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - review_id
+        - review_type
+        - status
+        - new_node_canonical_name
+        - source_invoice_id
+        - created_at
+
+    ReviewQueueItemDetail:
+      type: object
+      properties:
+        review_id:
+          type: string
+          format: uuid
+        review_type:
+          $ref: "#/components/schemas/ReviewType"
+        status:
+          $ref: "#/components/schemas/ReviewStatus"
+        confidence_score:
+          type: number
+          nullable: true
+        raw_debtor_details:
+          type: object
+          additionalProperties: true
+        new_node:
+          $ref: "#/components/schemas/BusinessNode"
+        candidate_node:
+          allOf:
+            - $ref: "#/components/schemas/BusinessNode"
+          nullable: true
+        source_invoice_id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - review_id
+        - review_type
+        - status
+        - new_node
+        - source_invoice_id
+        - created_at
+
+    ReviewActionResult:
+      type: object
+      properties:
+        review_id:
+          type: string
+          format: uuid
+        action:
+          type: string
+          enum: [accepted, rejected, skipped]
+        message:
+          type: string
+      required:
+        - review_id
+        - action
+        - message
+
+    AuditEvent:
+      type: object
+      properties:
+        event_id:
+          type: string
+          format: uuid
+        event_type:
+          type: string
+        entity_id:
+          type: string
+          nullable: true
+        entity_type:
+          type: string
+          nullable: true
+        payload:
+          type: object
+          additionalProperties: true
+        operator_id:
+          type: string
+          format: uuid
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - event_id
+        - event_type
+        - created_at
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        code:
+          type: string
+      required:
+        - error
+        - message
