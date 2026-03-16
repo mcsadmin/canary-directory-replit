@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "5bWEgrgKWyyrjpWAp7q0X"
+uri = "file://railway-deployment-guide.md"
+type = "text"
+title = "Railway Deployment Guide"
