@@ -1,0 +1,32 @@
+
+~/workspace$ cd /home/runner/workspace && DATABASE_URL="POSTRGES_PUBLIC_URL" pnpm
+ --filter @workspace/scripts run seed
+
+> @workspace/scripts@0.0.0 seed /home/runner/workspace/scripts
+> tsx ./src/seed.ts
+
+Seeding database...
+Seed error: DrizzleQueryError: Failed query: select "operator_id", "username", "password_hash", "display_name", "created_at" from "operators" where "operators"."username" = $1 limit $2
+params: operator,1
+    at NodePgPreparedQuery.queryWithCache (/home/runner/workspace/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async <anonymous> (/home/runner/workspace/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+    at async seed (/home/runner/workspace/scripts/src/seed.ts:15:22) {
+  query: 'select "operator_id", "username", "password_hash", "display_name", "created_at" from "operators" where "operators"."username" = $1 limit $2',
+  params: [ 'operator', 1 ],
+  cause: Error: getaddrinfo ENOTFOUND base
+      at /home/runner/workspace/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async <anonymous> (/home/runner/workspace/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:161:13)
+      at async NodePgPreparedQuery.queryWithCache (/home/runner/workspace/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+      at async <anonymous> (/home/runner/workspace/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+      at async seed (/home/runner/workspace/scripts/src/seed.ts:15:22) {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'base'
+  }
+}
+/home/runner/workspace/scripts:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @workspace/scripts@0.0.0 seed: `tsx ./src/seed.ts`
+Exit status 1
